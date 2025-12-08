@@ -5,10 +5,14 @@ __pycache__/
 *.pyd
 *.pkl
 *.pt
+.ipynb_checkpoints/
 
 # Virtual environments
 venv/
 .env/
+.venv/
+env/
+conda_env/
 *.egg-info/
 
 # VSCode settings
