@@ -1,59 +1,51 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
-torch.set_printoptions(sci_mode=False, precision=2)
+class SelfAttention(nn.Module):
+    def __init__(self, d_model, d_k):
+        super().__init__()
+        self.d_k = d_k
+        self.W_Q = nn.Linear(d_model, d_k, bias=False)
+        self.W_K = nn.Linear(d_model, d_k, bias=False)
+        self.W_V = nn.Linear(d_model, d_model, bias=False)
 
-# 0. fix random seed for reproducibility
-torch.manual_seed(42)
+    def forward(self, x):
+        """
+        x: (B, T, d_model)
+        Returns:
+          out: (B, T, d_model)
+          weights: (B, num_heads, T, T)
+          scores: (B, num_heads, T, T)
+        """
+        Q = self.W_Q(x)  # (B, T, d_k)
+        K = self.W_K(x)  # (B, T, d_k)
+        V = self.W_V(x)  # (B, T, d_model)
 
-# 1. input tensor x
-T = 4           # sequence length
-d_model = 8     # embedding dimension
-d_k = 3         # attention dimension (for Q, K)
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.d_k, dtype=torch.float32))
+        weights = F.softmax(scores, dim=-1)
+        out = torch.matmul(weights, V)
+        return out, weights, scores
 
-x = torch.randn(T, d_model)
-print("\n=== Input x (shape: {}) ===".format(x.shape))
-print(x)
+class MultiHeadAttention(nn.Module):
+    def __init__(self, d_model, d_k, num_heads):
+        super().__init__()
+        self.heads = nn.ModuleList([SelfAttention(d_model, d_k) for _ in range(num_heads)])  # num_heads SelfAttention heads
+        self.linear = nn.Linear(d_model * num_heads, d_model)  # Linear layer to project concatenated heads back to d_model
 
-# 2. weight matrices
-W_Q = torch.randn(d_model, d_k)
-W_K = torch.randn(d_model, d_k)
-W_V = torch.randn(d_model, d_model)
+    def forward(self, x):
+        head_outputs = []   # each head's output: (B, T, d_model)
+        all_scores = []     # each head's attention scores: (B, T, T)
+        all_weights = []    # each head's attention weights: (B, T, T)
+        for head in self.heads:
+            out, weights, scores = head(x)
+            head_outputs.append(out)
+            all_scores.append(scores)
+            all_weights.append(weights)
 
-print("\n=== W_Q (shape: {}) ===".format(W_Q.shape))
-print(W_Q)
-
-print("\n=== W_K (shape: {}) ===".format(W_K.shape))
-print(W_K)
-
-print("\n=== W_V (shape: {}) ===".format(W_V.shape))
-print(W_V)
-
-# 3. compute Q, K, V
-Q = x @ W_Q
-K = x @ W_K
-V = x @ W_V
-
-print("\n=== Q (shape: {}) ===".format(Q.shape))
-print(Q)
-
-print("\n=== K (shape: {}) ===".format(K.shape))
-print(K)
-
-print("\n=== V (shape: {}) ===".format(V.shape))
-print(V)
-
-# 4. similarity scores
-scores = Q @ K.T / torch.sqrt(torch.tensor(d_k, dtype=torch.float32))
-print("\n=== scores (shape: {}) ===".format(scores.shape))
-print(scores)
-
-# 5. attention weights
-weights = F.softmax(scores, dim=-1)
-print("\n=== weights (shape: {}) ===".format(weights.shape))
-print(weights)
-
-# 6. output
-out = weights @ V
-print("\n=== out (shape: {}) ===".format(out.shape))
-print(out)
+        concat = torch.cat(head_outputs, dim=-1)
+        out = self.linear(concat)
+        # stack to introduce head dimension: (B, num_heads, T, T)
+        scores = torch.stack(all_scores, dim=1)
+        weights = torch.stack(all_weights, dim=1)
+        return out, weights, scores
