@@ -7,8 +7,14 @@ import torch.nn.functional as F
 class SelfAttention(nn.Module):
     """
     Single-head self-attention.
-    Input shape:  (B, T, d_model)
-    Output shape: (B, T, d_model)
+
+    Input:
+        x: (B, T, d_model)
+
+    Returns:
+        out:     (B, T, d_model)
+        weights: (B, T, T)        attention weights (after softmax)
+        scores:  (B, T, T)        raw attention scores (before softmax)
     """
 
     def __init__(self, d_model: int, d_k: int):
@@ -16,7 +22,7 @@ class SelfAttention(nn.Module):
         self.d_model = d_model
         self.d_k = d_k
 
-        # Linear layers for Q, K, V
+        # Linear projections for Q, K, V
         self.W_Q = nn.Linear(d_model, d_k)
         self.W_K = nn.Linear(d_model, d_k)
         self.W_V = nn.Linear(d_model, d_model)
@@ -28,21 +34,14 @@ class SelfAttention(nn.Module):
         B, T, D = x.shape
         assert D == self.d_model
 
-        # 1. project into Q, K, V
-        #    shapes: (B, T, d_k), (B, T, d_k), (B, T, d_model)
-        Q = self.W_Q(x)
-        K = self.W_K(x)
-        V = self.W_V(x)
+        # Project to Q, K, V
+        Q = self.W_Q(x)  # (B, T, d_k)
+        K = self.W_K(x)  # (B, T, d_k)
+        V = self.W_V(x)  # (B, T, d_model)
 
-        # 2. compute attention scores
-        #    Q @ K^T → (B, T, T)
-        #    we transpose the last two dims of K: (..., T, d_k) -> (..., d_k, T)
-        scores = Q @ K.transpose(-2, -1) / math.sqrt(self.d_k)
-
-        # 3. softmax over "key" dimension (last dim)
-        weights = F.softmax(scores, dim=-1)  # (B, T, T)
-
-        # 4. weighted sum of V → (B, T, d_model)
-        out = weights @ V
+        # Scaled dot-product attention
+        scores = Q @ K.transpose(-2, -1) / math.sqrt(self.d_k)  # (B, T, T)
+        weights = F.softmax(scores, dim=-1)                      # (B, T, T)
+        out = weights @ V                                        # (B, T, d_model)
 
         return out, weights, scores
