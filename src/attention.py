@@ -41,6 +41,10 @@ class SelfAttention(nn.Module):
 
         # Scaled dot-product attention
         scores = Q @ K.transpose(-2, -1) / math.sqrt(self.d_k)  # (B, T, T)
+        
+        mask = torch.tril(torch.ones(T, T, device=x.device)).bool()  # (T, T) lower triangular
+        scores = scores.masked_fill(~mask, float('-inf'))  # mask out future
+        
         weights = F.softmax(scores, dim=-1)                      # (B, T, T)
         out = weights @ V                                        # (B, T, d_model)
 
