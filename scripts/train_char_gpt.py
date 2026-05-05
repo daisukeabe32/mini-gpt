@@ -25,7 +25,8 @@ def main():
     # -----------------------------
     # 1. tiny corpus & tokenizer
     # -----------------------------
-    text = "hello world!\n" * 200  # 小さなおもちゃデータ
+    with open("data/shakespeare.txt", "r") as f:
+        text = f.read()
 
     tok = CharTokenizer(text)
     vocab_size = tok.vocab_size
@@ -36,14 +37,14 @@ def main():
     # -----------------------------
     # 2. model hyper-parameters
     # -----------------------------
-    block_size = 8      # コンテキスト長（最大トークン数）
-    d_model = 32
-    n_layers = 2
+    block_size = 128      # コンテキスト長（最大トークン数）
+    d_model = 64
+    n_layers = 4
     num_heads = 4
-    d_k = 8
-    d_ff = 64
-    batch_size = 16
-    max_iters = 200
+    d_k = 16
+    d_ff = 256
+    batch_size = 32
+    max_iters = 5000
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     print("device:", device)
@@ -88,7 +89,8 @@ def main():
     context = torch.tensor([[tok.stoi["h"]]], dtype=torch.long, device=device)
 
     generated = context
-    for _ in range(50):
+    max_new_tokens = 500
+    for _ in range(max_new_tokens):
         # use only the last `block_size` tokens as context
         idx_cond = generated[:, -block_size:]
         logits = model(idx_cond)          # (B, T, V)

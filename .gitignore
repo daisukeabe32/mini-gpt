@@ -20,3 +20,6 @@ conda_env/
 
 # macOS system files
 .DS_Store
+
+# data files
+data/
