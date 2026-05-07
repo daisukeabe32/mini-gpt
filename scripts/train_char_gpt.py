@@ -37,7 +37,7 @@ def main():
     # -----------------------------
     # 2. model hyper-parameters
     # -----------------------------
-    block_size = 128      # コンテキスト長（最大トークン数）
+    block_size = 128      # maximum context length
     d_model = 64
     n_layers = 4
     num_heads = 4

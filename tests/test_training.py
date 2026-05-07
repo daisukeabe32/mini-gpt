@@ -20,7 +20,7 @@ def tiny_setup():
 
 class TestTraining:
     def test_loss_decreases(self, tiny_setup):
-        """10ステップ学習してlossが下がることを確認する"""
+        """Verify that loss decreases after 10 training steps."""
         model, data, tok = tiny_setup
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
 
@@ -48,7 +48,7 @@ class TestTraining:
         assert loss_after < loss_before
 
     def test_initial_loss_near_log_vocab(self, tiny_setup):
-        """初期lossがlog(vocab_size)付近にあることを確認する（重みが偏っていない）"""
+        """Initial loss should be near log(vocab_size), indicating unbiased weight initialization."""
         model, data, tok = tiny_setup
         x = data[:16].unsqueeze(0)
         y = data[1:17].unsqueeze(0)
