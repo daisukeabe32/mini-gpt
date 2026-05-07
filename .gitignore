@@ -24,3 +24,6 @@ conda_env/
 
 # data files
 data/
+
+# W&B run logs (synced to cloud, not needed in git)
+wandb/

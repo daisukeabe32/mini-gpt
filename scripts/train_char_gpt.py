@@ -58,16 +58,16 @@ def main():
     # 2. hyperparameters
     # --------------------------------------------------
     config = dict(
-        block_size  = 128,
-        d_model     = 64,
-        n_layers    = 4,
-        num_heads   = 4,
-        d_k         = 16,
-        d_ff        = 256,
-        batch_size  = 32,
-        max_iters   = 5000,
-        lr          = 1e-3,
-        eval_every  = 200,
+        block_size  = 256,
+        d_model     = 384,
+        n_layers    = 6,
+        num_heads   = 8,
+        d_k         = 48,
+        d_ff        = 1536,
+        batch_size  = 8,
+        max_iters   = 10000,
+        lr          = 3e-4,
+        eval_every  = 500,
         vocab_size  = vocab_size,
     )
 
@@ -78,7 +78,7 @@ def main():
     # --------------------------------------------------
     wandb.init(
         project = "mini-gpt",
-        entity  = "daisukeabe32",
+        entity  = "daisukeabe32-university-of-tokyo",
         config  = config,
     )
     print(f"vocab_size: {vocab_size} | device: {device}")
