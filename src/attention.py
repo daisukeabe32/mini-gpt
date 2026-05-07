@@ -25,7 +25,7 @@ class SelfAttention(nn.Module):
         # Linear projections for Q, K, V
         self.W_Q = nn.Linear(d_model, d_k)
         self.W_K = nn.Linear(d_model, d_k)
-        self.W_V = nn.Linear(d_model, d_model)
+        self.W_V = nn.Linear(d_model, d_k)
 
     def forward(self, x: torch.Tensor):
         """

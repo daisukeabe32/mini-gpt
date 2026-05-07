@@ -18,9 +18,10 @@ class MultiHeadAttention(nn.Module):
             [SelfAttention(d_model=d_model, d_k=d_k) for _ in range(num_heads)]
         )
 
-        # Concatenate outputs from all heads: (B, T, d_model) → (B, T, num_heads*d_model)
+        # Concatenate outputs from all heads: (B, T, d_k) → (B, T, num_heads*d_k)
         # Project concatenated features back to d_model
-        self.W_O = nn.Linear(num_heads * d_model, d_model)
+        self.W_O = nn.Linear(num_heads * d_k, d_model)
+        
 
     def forward(self, x: torch.Tensor):
         """
@@ -31,7 +32,7 @@ class MultiHeadAttention(nn.Module):
           weights:   (B, num_heads, T, T)
           scores:    (B, num_heads, T, T)
         """
-        head_outputs = []   # output from each head: (B, T, d_model)
+        head_outputs = []   # output from each head: (B, T, d_k)
         all_weights = []    # attention weights from each head: (B, T, T)
         all_scores = []     # raw attention scores from each head: (B, T, T)
 
@@ -41,7 +42,7 @@ class MultiHeadAttention(nn.Module):
             all_weights.append(weights_h)
             all_scores.append(scores_h)
 
-        # Concatenate along last dimension → (B, T, num_heads*d_model)
+        # Concatenate along last dimension → (B, T, num_heads*d_k)
         concat = torch.cat(head_outputs, dim=-1)
 
         # Final linear projection back to (B, T, d_model)
