@@ -81,10 +81,11 @@ python -m pytest tests/ -v
 
 ## Roadmap
 
-| Milestone | Status |
-|---|---|
-| M0: Causal mask | Done |
-| M1: MHA refactor + TinyShakespeare + tests | Done |
-| M2: Full training run, perplexity, validation set, model card | In progress |
-| M3: Extension experiment (mechanistic interpretability / positional encoding study) | Planned |
-| M4: arXiv preprint | Planned |
+| Milestone | Date | Status | Summary |
+|---|---|---|---|
+| **v0.1: Initial build** | 2025-12 | Done | SelfAttention → MHA → FeedForward → TransformerBlock → CharTokenizer → training loop。全モジュール実装・結合完了 |
+| **M0: Causal mask fix** | 2026-05-04 | Done | `src/attention.py` に lower-triangular mask 実装。loss 2.34 → 0.08 に改善。autoregressive property 確立 |
+| **M1: Refactor + corpus + tests** | 2026-05-07 | Done | MHA canonical refactor (d_head = d_k)。TinyShakespeare 切替。pytest 24テスト体制構築 |
+| **M2: Full training + evaluation** | 2026-08 | Planned | ~10M param training run、perplexity、held-out validation、model card |
+| **M3: Extension experiment** | 2026-10 | Planned | mechanistic interpretability probe または positional encoding 比較研究 |
+| **M4: arXiv preprint** | 2026-12 | Planned | 6-10 page writeup → arXiv (cs.LG / cs.CL) |
