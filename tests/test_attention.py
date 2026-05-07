@@ -35,6 +35,13 @@ class TestSelfAttention:
         row_sums = weights.sum(dim=-1)
         assert row_sums.allclose(torch.ones_like(row_sums), atol=1e-5)
 
+    def test_no_nan_or_inf(self, x):
+        sa = SelfAttention(d_model=d_model, d_k=d_k)
+        out, weights, _ = sa(x)
+        assert not torch.isnan(out).any()
+        assert not torch.isnan(weights).any()
+        assert not torch.isinf(out).any()
+
 
 class TestMultiHeadAttention:
     def test_output_shape(self, x):
@@ -55,3 +62,10 @@ class TestMultiHeadAttention:
         _, weights, _ = mha(x)
         row_sums = weights.sum(dim=-1)
         assert row_sums.allclose(torch.ones_like(row_sums), atol=1e-5)
+
+    def test_no_nan_or_inf(self, x):
+        mha = MultiHeadAttention(d_model=d_model, d_k=d_k, num_heads=num_heads)
+        out, weights, _ = mha(x)
+        assert not torch.isnan(out).any()
+        assert not torch.isnan(weights).any()
+        assert not torch.isinf(out).any()

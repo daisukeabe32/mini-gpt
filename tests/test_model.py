@@ -52,3 +52,8 @@ class TestMiniGPT:
             if p.requires_grad:
                 assert p.grad is not None
                 break
+
+    def test_no_nan_or_inf(self, model, idx):
+        logits = model(idx)
+        assert not torch.isnan(logits).any()
+        assert not torch.isinf(logits).any()
