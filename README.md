@@ -1,26 +1,90 @@
 # mini-gpt
 
-A minimal implementation of the core components of a Transformer model, built for learning and experimentation.
+A from-scratch implementation of a character-level GPT in PyTorch, built for deep understanding of Transformer internals.
 
-## Contents
+## Architecture
 
-- `attention_toy.py`  
-  A step-by-step implementation of scaled dot-product self-attention.
+```
+Input (B, T)
+  → CharTokenizer          character-level vocabulary
+  → Token + Position Embedding
+  → TransformerBlock × 4   pre-LayerNorm, causal MHA, FFN (GELU)
+  → LayerNorm
+  → LM Head (linear → logits)
+```
 
-## Goals
+**Key design choices**
 
-- Understand self-attention deeply through code.
-- Build up to a full mini-GPT model (tokenizer → embedding → multi-head attention → transformer block → language modeling head).
-- Document each stage and track progress on GitHub.
+- Causal self-attention with lower-triangular mask (autoregressive)
+- Multi-head attention: `d_head = d_k` per head, concat → `W_O` projection
+- Pre-LayerNorm (more stable than post-LN for small models)
+- Training corpus: TinyShakespeare (~1M chars)
 
-## Environment
+**Hyperparameters (current)**
 
-- Python 3.11 (Conda `ml` environment)
-- PyTorch 2.9.1 (MPS enabled on Apple Silicon)
+| param | value |
+|---|---|
+| block\_size | 128 |
+| d\_model | 64 |
+| n\_layers | 4 |
+| num\_heads | 4 |
+| d\_k | 16 |
+| d\_ff | 256 |
+
+## Project Structure
+
+```
+mini-gpt/
+├── src/
+│   ├── tokenizer.py      CharTokenizer (char-level encode/decode)
+│   ├── attention.py      SelfAttention with causal mask
+│   ├── mha.py            MultiHeadAttention
+│   ├── feedforward.py    FFN with GELU
+│   ├── block.py          TransformerBlock (pre-LN + residuals)
+│   └── model.py          MiniGPT (full model)
+├── scripts/
+│   └── train_char_gpt.py training loop + text generation
+├── tests/
+│   ├── test_attention.py
+│   ├── test_block.py
+│   ├── test_feedforward.py
+│   ├── test_model.py
+│   ├── test_tokenizer.py
+│   └── test_training.py
+└── data/
+    └── shakespeare.txt
+```
+
+## Setup
+
+```bash
+conda activate ml   # Python 3.11, PyTorch 2.9.1
+```
 
 ## Usage
 
-Run the toy attention module:
+**Train**
 
 ```bash
-python attention_toy.py
+python -m scripts.train_char_gpt
+```
+
+Runs 5000 steps on TinyShakespeare. Prints loss every 20 steps and generates a sample at the end. Uses MPS on Apple Silicon automatically.
+
+**Test**
+
+```bash
+python -m pytest tests/ -v
+```
+
+24 tests covering: output shapes, causal mask correctness, attention weight normalization, NaN/Inf checks, gradient flow, and an end-to-end loss-decreases integration test.
+
+## Roadmap
+
+| Milestone | Status |
+|---|---|
+| M0: Causal mask | Done |
+| M1: MHA refactor + TinyShakespeare + tests | Done |
+| M2: Full training run, perplexity, validation set, model card | In progress |
+| M3: Extension experiment (mechanistic interpretability / positional encoding study) | Planned |
+| M4: arXiv preprint | Planned |
