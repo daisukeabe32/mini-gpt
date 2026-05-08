@@ -55,8 +55,10 @@ def parse_args():
                         help="Minimum learning rate at end of cosine decay (1/10 of lr)")
     parser.add_argument("--warmup_iters",type=int,   default=200,
                         help="Steps over which lr linearly warms up from 0 to lr")
-    parser.add_argument("--no_wandb",   action="store_true",
+    parser.add_argument("--no_wandb",      action="store_true",
                         help="Disable W&B logging (useful for quick test runs)")
+    parser.add_argument("--no_checkpoint", action="store_true",
+                        help="Disable checkpoint saving (useful for quick test runs)")
     return parser.parse_args()
 
 
@@ -154,10 +156,20 @@ def main():
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
         return min_lr + coeff * (max_lr - min_lr)
 
-    os.makedirs("checkpoints", exist_ok=True)
+    save_ckpt = not args.no_checkpoint
+    if save_ckpt:
+        from datetime import datetime
+        run_id   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ckpt_dir = os.path.join("checkpoints", run_id)
+        os.makedirs(ckpt_dir, exist_ok=True)
+        print(f"checkpoint dir: {ckpt_dir}")
     best_val_loss = float("inf")
 
-    def save_checkpoint(path, step, val_loss):
+    def save_checkpoint(tag: str, step: int, val_loss: float):
+        """tag is 'best' or 'final'."""
+        if not save_ckpt:
+            return
+        path = os.path.join(ckpt_dir, f"{tag}.pt")
         torch.save({
             "model_state": model.state_dict(),
             "config":      config,
@@ -166,6 +178,7 @@ def main():
             "step":        step,
             "val_loss":    val_loss,
         }, path)
+        return path
 
     model.train()
     for step in range(config["max_iters"]):
@@ -190,7 +203,7 @@ def main():
             val_bpc    = val_loss   / 0.693147
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                save_checkpoint("checkpoints/best.pt", step, val_loss)
+                save_checkpoint("best", step, val_loss)
                 print(f"  → best checkpoint saved (val_loss={val_loss:.4f})")
             print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc)")
             if use_wandb:
@@ -201,7 +214,7 @@ def main():
                     "val/bpc":    val_bpc,
                 }, step=step)
 
-    save_checkpoint("checkpoints/final.pt", config["max_iters"] - 1, val_loss)
+    save_checkpoint("final", config["max_iters"] - 1, val_loss)
     print("final checkpoint saved")
 
     # --------------------------------------------------
