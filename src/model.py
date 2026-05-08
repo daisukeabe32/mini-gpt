@@ -29,6 +29,7 @@ class MiniGPT(nn.Module):
         d_k: int,
         d_ff: int,
         block_size: int,
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.vocab_size = vocab_size
@@ -47,7 +48,7 @@ class MiniGPT(nn.Module):
 
         # 3) stack of Transformer blocks
         self.blocks = nn.ModuleList([
-            TransformerBlock(d_model=d_model, d_k=d_k, num_heads=num_heads, d_ff=d_ff)
+            TransformerBlock(d_model=d_model, d_k=d_k, num_heads=num_heads, d_ff=d_ff, dropout=dropout)
             for _ in range(n_layers)
         ])
 

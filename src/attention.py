@@ -17,7 +17,7 @@ class SelfAttention(nn.Module):
         scores:  (B, T, T)        raw attention scores (before softmax)
     """
 
-    def __init__(self, d_model: int, d_k: int):
+    def __init__(self, d_model: int, d_k: int, dropout: float = 0.0):
         super().__init__()
         self.d_model = d_model
         self.d_k = d_k
@@ -26,6 +26,9 @@ class SelfAttention(nn.Module):
         self.W_Q = nn.Linear(d_model, d_k)
         self.W_K = nn.Linear(d_model, d_k)
         self.W_V = nn.Linear(d_model, d_k)
+
+        # Applied to attention weights after softmax to randomly drop connections
+        self.attn_dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor):
         """
@@ -46,6 +49,7 @@ class SelfAttention(nn.Module):
         scores = scores.masked_fill(~mask, float('-inf'))  # mask out future
         
         weights = F.softmax(scores, dim=-1)                      # (B, T, T)
+        weights = self.attn_dropout(weights)
         out = weights @ V                                        # (B, T, d_model)
 
         return out, weights, scores

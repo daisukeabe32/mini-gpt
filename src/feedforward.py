@@ -16,7 +16,7 @@ class FeedForward(nn.Module):
         out: (B, T, d_model)
     """
 
-    def __init__(self, d_model: int, d_ff: int):
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.0):
         super().__init__()
         self.d_model = d_model
         self.d_ff = d_ff
@@ -27,11 +27,14 @@ class FeedForward(nn.Module):
         self.fc1 = nn.Linear(d_model, d_ff)
         self.fc2 = nn.Linear(d_ff, d_model)
 
+        # Applied after fc2 to regularize FFN residual connections
+        self.dropout = nn.Dropout(dropout)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         x: (B, T, d_model)
         """
         x = self.fc1(x)
         x = F.gelu(x)
-        x = self.fc2(x)
+        x = self.dropout(self.fc2(x))
         return x

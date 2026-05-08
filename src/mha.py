@@ -7,7 +7,7 @@ from src.attention import SelfAttention
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model: int, d_k: int, num_heads: int):
+    def __init__(self, d_model: int, d_k: int, num_heads: int, dropout: float = 0.0):
         super().__init__()
         self.d_model = d_model
         self.d_k = d_k
@@ -15,12 +15,15 @@ class MultiHeadAttention(nn.Module):
 
         # Create num_heads parallel SelfAttention modules
         self.heads = nn.ModuleList(
-            [SelfAttention(d_model=d_model, d_k=d_k) for _ in range(num_heads)]
+            [SelfAttention(d_model=d_model, d_k=d_k, dropout=dropout) for _ in range(num_heads)]
         )
 
         # Concatenate outputs from all heads: (B, T, d_k) → (B, T, num_heads*d_k)
         # Project concatenated features back to d_model
         self.W_O = nn.Linear(num_heads * d_k, d_model)
+
+        # Applied after the output projection to regularize residual connections
+        self.resid_dropout = nn.Dropout(dropout)
         
 
     def forward(self, x: torch.Tensor):
@@ -46,7 +49,7 @@ class MultiHeadAttention(nn.Module):
         concat = torch.cat(head_outputs, dim=-1)
 
         # Final linear projection back to (B, T, d_model)
-        out = self.W_O(concat)
+        out = self.resid_dropout(self.W_O(concat))
 
         # Stack per-head attention maps into (B, num_heads, T, T)
         weights = torch.stack(all_weights, dim=1)

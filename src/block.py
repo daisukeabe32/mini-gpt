@@ -12,7 +12,7 @@ class TransformerBlock(nn.Module):
       - LayerNorm + FeedForward + residual
     """
 
-    def __init__(self, d_model: int, d_k: int, num_heads: int, d_ff: int):
+    def __init__(self, d_model: int, d_k: int, num_heads: int, d_ff: int, dropout: float = 0.0):
         super().__init__()
         self.d_model = d_model
         self.d_k = d_k
@@ -24,10 +24,10 @@ class TransformerBlock(nn.Module):
         self.ln2 = nn.LayerNorm(d_model)
 
         # Multi-head self-attention (uses the class defined above)
-        self.mha = MultiHeadAttention(d_model=d_model, d_k=d_k, num_heads=num_heads)
+        self.mha = MultiHeadAttention(d_model=d_model, d_k=d_k, num_heads=num_heads, dropout=dropout)
 
         # Position-wise feed-forward network
-        self.ffn = FeedForward(d_model=d_model, d_ff=d_ff)
+        self.ffn = FeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
 
     def forward(self, x: torch.Tensor):
         """

@@ -1,4 +1,5 @@
 import argparse
+import math
 import os
 import torch
 import torch.nn.functional as F
@@ -49,6 +50,11 @@ def parse_args():
     parser.add_argument("--max_iters",   type=int,   default=10000)
     parser.add_argument("--lr",          type=float, default=3e-4)
     parser.add_argument("--eval_every",  type=int,   default=500)
+    parser.add_argument("--dropout",     type=float, default=0.2)
+    parser.add_argument("--min_lr",      type=float, default=3e-5,
+                        help="Minimum learning rate at end of cosine decay (1/10 of lr)")
+    parser.add_argument("--warmup_iters",type=int,   default=200,
+                        help="Steps over which lr linearly warms up from 0 to lr")
     parser.add_argument("--no_wandb",   action="store_true",
                         help="Disable W&B logging (useful for quick test runs)")
     return parser.parse_args()
@@ -78,17 +84,20 @@ def main():
     # 2. hyperparameters
     # --------------------------------------------------
     config = dict(
-        block_size  = args.block_size,
-        d_model     = args.d_model,
-        n_layers    = args.n_layers,
-        num_heads   = args.num_heads,
-        d_k         = args.d_k,
-        d_ff        = args.d_ff,
-        batch_size  = args.batch_size,
-        max_iters   = args.max_iters,
-        lr          = args.lr,
-        eval_every  = args.eval_every,
-        vocab_size  = vocab_size,
+        block_size   = args.block_size,
+        d_model      = args.d_model,
+        n_layers     = args.n_layers,
+        num_heads    = args.num_heads,
+        d_k          = args.d_k,
+        d_ff         = args.d_ff,
+        batch_size   = args.batch_size,
+        max_iters    = args.max_iters,
+        lr           = args.lr,
+        eval_every   = args.eval_every,
+        dropout      = args.dropout,
+        min_lr       = args.min_lr,
+        warmup_iters = args.warmup_iters,
+        vocab_size   = vocab_size,
     )
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
@@ -117,6 +126,7 @@ def main():
         d_k        = config["d_k"],
         d_ff       = config["d_ff"],
         block_size = config["block_size"],
+        dropout    = config["dropout"],
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -129,6 +139,21 @@ def main():
     # --------------------------------------------------
     # 5. training loop
     # --------------------------------------------------
+    def get_lr(step: int) -> float:
+        """Cosine decay with linear warmup.
+        - Steps 0..warmup_iters: lr linearly rises from 0 to max lr
+        - Steps warmup_iters..max_iters: lr follows cosine curve down to min_lr
+        """
+        max_lr = config["lr"]
+        min_lr = config["min_lr"]
+        warmup = config["warmup_iters"]
+        total  = config["max_iters"]
+        if step < warmup:
+            return max_lr * step / warmup
+        decay_ratio = (step - warmup) / (total - warmup)
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+        return min_lr + coeff * (max_lr - min_lr)
+
     os.makedirs("checkpoints", exist_ok=True)
     best_val_loss = float("inf")
 
@@ -144,6 +169,11 @@ def main():
 
     model.train()
     for step in range(config["max_iters"]):
+        # Update learning rate according to cosine schedule
+        lr = get_lr(step)
+        for param_group in optimizer.param_groups:
+            param_group["lr"] = lr
+
         xb, yb = get_batch(train_data, config["block_size"], config["batch_size"], device)
         logits = model(xb)
         B, T, V = logits.shape
