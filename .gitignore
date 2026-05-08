@@ -26,4 +26,4 @@ conda_env/
 data/
 
 # W&B run logs (synced to cloud, not needed in git)
-wandb/
+wandb/checkpoints/

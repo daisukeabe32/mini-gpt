@@ -1,4 +1,5 @@
 import argparse
+import os
 import torch
 import torch.nn.functional as F
 import wandb
@@ -123,6 +124,19 @@ def main():
     # --------------------------------------------------
     # 5. training loop
     # --------------------------------------------------
+    os.makedirs("checkpoints", exist_ok=True)
+    best_val_loss = float("inf")
+
+    def save_checkpoint(path, step, val_loss):
+        torch.save({
+            "model_state": model.state_dict(),
+            "config":      config,
+            "stoi":        tok.stoi,
+            "itos":        tok.itos,
+            "step":        step,
+            "val_loss":    val_loss,
+        }, path)
+
     model.train()
     for step in range(config["max_iters"]):
         xb, yb = get_batch(train_data, config["block_size"], config["batch_size"], device)
@@ -139,6 +153,10 @@ def main():
             val_loss   = estimate_loss(model, val_data,   config["block_size"], config["batch_size"], device)
             train_bpc  = train_loss / 0.693147  # nats -> bits per char
             val_bpc    = val_loss   / 0.693147
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                save_checkpoint("checkpoints/best.pt", step, val_loss)
+                print(f"  → best checkpoint saved (val_loss={val_loss:.4f})")
             print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc)")
             wandb.log({
                 "train/loss": train_loss,
@@ -146,6 +164,9 @@ def main():
                 "val/loss":   val_loss,
                 "val/bpc":    val_bpc,
             }, step=step)
+
+    save_checkpoint("checkpoints/final.pt", config["max_iters"] - 1, val_loss)
+    print("final checkpoint saved")
 
     # --------------------------------------------------
     # 6. text generation sample
