@@ -1,3 +1,4 @@
+import argparse
 import torch
 import torch.nn.functional as F
 import wandb
@@ -35,7 +36,23 @@ def estimate_loss(model, data_ids, block_size, batch_size, device, eval_iters=50
     return sum(losses) / len(losses)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train a character-level GPT on TinyShakespeare")
+    parser.add_argument("--block_size",  type=int,   default=256)
+    parser.add_argument("--d_model",     type=int,   default=384)
+    parser.add_argument("--n_layers",    type=int,   default=6)
+    parser.add_argument("--num_heads",   type=int,   default=8)
+    parser.add_argument("--d_k",         type=int,   default=48)
+    parser.add_argument("--d_ff",        type=int,   default=1536)
+    parser.add_argument("--batch_size",  type=int,   default=8)
+    parser.add_argument("--max_iters",   type=int,   default=10000)
+    parser.add_argument("--lr",          type=float, default=3e-4)
+    parser.add_argument("--eval_every",  type=int,   default=500)
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     torch.manual_seed(42)
 
     # --------------------------------------------------
@@ -58,16 +75,16 @@ def main():
     # 2. hyperparameters
     # --------------------------------------------------
     config = dict(
-        block_size  = 256,
-        d_model     = 384,
-        n_layers    = 6,
-        num_heads   = 8,
-        d_k         = 48,
-        d_ff        = 1536,
-        batch_size  = 8,
-        max_iters   = 10000,
-        lr          = 3e-4,
-        eval_every  = 500,
+        block_size  = args.block_size,
+        d_model     = args.d_model,
+        n_layers    = args.n_layers,
+        num_heads   = args.num_heads,
+        d_k         = args.d_k,
+        d_ff        = args.d_ff,
+        batch_size  = args.batch_size,
+        max_iters   = args.max_iters,
+        lr          = args.lr,
+        eval_every  = args.eval_every,
         vocab_size  = vocab_size,
     )
 
