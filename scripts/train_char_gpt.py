@@ -189,6 +189,7 @@ def main():
         return path
 
     model.train()
+    grad_norms = []
     for step in range(config["max_iters"]):
         # Update learning rate according to cosine schedule
         lr = get_lr(step)
@@ -202,8 +203,8 @@ def main():
 
         optimizer.zero_grad()
         loss.backward()
-        if args.grad_clip > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip if args.grad_clip > 0 else float("inf"))
+        grad_norms.append(grad_norm.item())
         optimizer.step()
 
         if step % config["eval_every"] == 0 or step == config["max_iters"] - 1:
@@ -211,17 +212,20 @@ def main():
             val_loss   = estimate_loss(model, val_data,   config["block_size"], config["batch_size"], device)
             train_bpc  = train_loss / 0.693147  # nats -> bits per char
             val_bpc    = val_loss   / 0.693147
+            mean_grad_norm = sum(grad_norms) / len(grad_norms)
+            grad_norms = []
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 save_checkpoint("best", step, val_loss)
                 print(f"  → best checkpoint saved (val_loss={val_loss:.4f})")
-            print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc)")
+            print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc) | grad_norm {mean_grad_norm:.3f}")
             if use_wandb:
                 wandb.log({
-                    "train/loss": train_loss,
-                    "train/bpc":  train_bpc,
-                    "val/loss":   val_loss,
-                    "val/bpc":    val_bpc,
+                    "train/loss":      train_loss,
+                    "train/bpc":       train_bpc,
+                    "val/loss":        val_loss,
+                    "val/bpc":         val_bpc,
+                    "train/grad_norm": mean_grad_norm,
                 }, step=step)
 
     save_checkpoint("final", config["max_iters"] - 1, val_loss)
