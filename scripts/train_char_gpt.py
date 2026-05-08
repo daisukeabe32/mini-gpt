@@ -145,8 +145,7 @@ def main():
                 "train/bpc":  train_bpc,
                 "val/loss":   val_loss,
                 "val/bpc":    val_bpc,
-                "step":       step,
-            })
+            }, step=step)
 
     # --------------------------------------------------
     # 6. text generation sample
