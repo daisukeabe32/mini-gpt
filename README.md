@@ -79,6 +79,25 @@ python -m pytest tests/ -v
 
 24 tests covering: output shapes, causal mask correctness, attention weight normalization, NaN/Inf checks, gradient flow, and an end-to-end loss-decreases integration test.
 
+## Model Card (M2 run — visionary-vortex-4)
+
+| | value |
+|---|---|
+| Parameters | 10,795,841 |
+| Training corpus | TinyShakespeare (~1M chars, 90/10 split) |
+| Training steps | 10,000 |
+| Optimizer | AdamW, lr=3e-4 |
+| Batch size | 8 |
+| Block size | 256 |
+| Train loss | 0.965 nats (1.39 bpc) |
+| Val loss | 1.671 nats (2.41 bpc) |
+| Val perplexity | 5.32 |
+| Device | Apple M2 (MPS) |
+| Random seed | 42 |
+| W&B run | [visionary-vortex-4](https://wandb.ai/daisukeabe32-university-of-tokyo/mini-gpt/runs/fs4kn7ug) |
+
+**Observations:** Train/val gap of 0.71 nats indicates overfitting, expected given the model size (10.8M params) relative to the corpus (~1M chars). Val loss plateaus around step 5000 and rises slightly thereafter, suggesting the optimal checkpoint is near step 5000–5500.
+
 ## Roadmap
 
 | Milestone | Date | Status | Summary |
@@ -86,6 +105,6 @@ python -m pytest tests/ -v
 | **v0.1: Initial build** | 2025-12 | Done | Built all modules from scratch: SelfAttention → MHA → FeedForward → TransformerBlock → CharTokenizer → training loop |
 | **M0: Causal mask fix** | 2026-05-04 | Done | Added lower-triangular mask to `src/attention.py`. Loss improved from 2.34 → 0.08. Autoregressive property established |
 | **M1: Refactor + corpus + tests** | 2026-05-07 | Done | Canonical MHA refactor (d_head = d_k). Switched to TinyShakespeare. 24-test pytest suite |
-| **M2: Full training + evaluation** | 2026-08 | Planned | ~10M param training run, perplexity, held-out validation, model card |
+| **M2: Full training + evaluation** | 2026-05-08 | Done | 10.8M param run, val perplexity 5.32, held-out validation, model card |
 | **M3: Extension experiment** | 2026-10 | Planned | Mechanistic interpretability probe or positional encoding comparison study |
 | **M4: arXiv preprint** | 2026-12 | Planned | 6-10 page writeup → arXiv (cs.LG / cs.CL) |
