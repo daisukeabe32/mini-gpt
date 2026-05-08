@@ -55,6 +55,8 @@ def parse_args():
                         help="Minimum learning rate at end of cosine decay (1/10 of lr)")
     parser.add_argument("--warmup_iters",type=int,   default=200,
                         help="Steps over which lr linearly warms up from 0 to lr")
+    parser.add_argument("--grad_clip",    type=float, default=1.0,
+                        help="Max gradient norm for clipping (0 = disabled)")
     parser.add_argument("--no_wandb",      action="store_true",
                         help="Disable W&B logging (useful for quick test runs)")
     parser.add_argument("--no_checkpoint", action="store_true",
@@ -99,6 +101,7 @@ def main():
         dropout      = args.dropout,
         min_lr       = args.min_lr,
         warmup_iters = args.warmup_iters,
+        grad_clip    = args.grad_clip,
         vocab_size   = vocab_size,
     )
 
@@ -136,7 +139,12 @@ def main():
     if use_wandb:
         wandb.config.update({"n_params": n_params})
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"])
+    decay_params    = [p for _, p in model.named_parameters() if p.dim() >= 2]
+    no_decay_params = [p for _, p in model.named_parameters() if p.dim() < 2]
+    optimizer = torch.optim.AdamW([
+        {"params": decay_params,    "weight_decay": 0.1},
+        {"params": no_decay_params, "weight_decay": 0.0},
+    ], lr=config["lr"])
 
     # --------------------------------------------------
     # 5. training loop
@@ -194,6 +202,8 @@ def main():
 
         optimizer.zero_grad()
         loss.backward()
+        if args.grad_clip > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         optimizer.step()
 
         if step % config["eval_every"] == 0 or step == config["max_iters"] - 1:

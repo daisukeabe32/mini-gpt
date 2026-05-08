@@ -1,5 +1,7 @@
 # src/model.py
 
+import math
+
 import torch
 import torch.nn as nn
 
@@ -57,6 +59,24 @@ class MiniGPT(nn.Module):
 
         # 5) language-model head: (B, T, d_model) -> (B, T, vocab_size)
         self.lm_head = nn.Linear(d_model, vocab_size)
+        # Share weights between input embedding and output projection (weight tying)
+        self.lm_head.weight = self.token_embedding.weight
+
+        # Weight initialization: all Linear/Embedding → N(0, 0.02),
+        # then residual projection layers scaled down by 1/sqrt(2 * n_layers)
+        # to keep the residual stream magnitude stable as depth increases.
+        self.apply(self._init_weights)
+        for name, p in self.named_parameters():
+            if name.endswith("W_O.weight") or name.endswith("ffn.fc2.weight"):
+                nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+
+    def _init_weights(self, module: nn.Module) -> None:
+        if isinstance(module, nn.Linear):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
         """
