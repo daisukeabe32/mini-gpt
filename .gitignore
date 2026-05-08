@@ -26,4 +26,10 @@ conda_env/
 data/
 
 # W&B run logs (synced to cloud, not needed in git)
-wandb/checkpoints/
+wandb/
+
+# Model checkpoints (large binary files, tracked via W&B)
+checkpoints/
+
+# Generated figures from analysis scripts
+figs/
