@@ -49,6 +49,8 @@ def parse_args():
     parser.add_argument("--max_iters",   type=int,   default=10000)
     parser.add_argument("--lr",          type=float, default=3e-4)
     parser.add_argument("--eval_every",  type=int,   default=500)
+    parser.add_argument("--no_wandb",   action="store_true",
+                        help="Disable W&B logging (useful for quick test runs)")
     return parser.parse_args()
 
 
@@ -94,11 +96,13 @@ def main():
     # --------------------------------------------------
     # 3. W&B init
     # --------------------------------------------------
-    wandb.init(
-        project = "mini-gpt",
-        entity  = "daisukeabe32-university-of-tokyo",
-        config  = config,
-    )
+    use_wandb = not args.no_wandb
+    if use_wandb:
+        wandb.init(
+            project = "mini-gpt",
+            entity  = "daisukeabe32-university-of-tokyo",
+            config  = config,
+        )
     print(f"vocab_size: {vocab_size} | device: {device}")
     print(f"train tokens: {len(train_data):,} | val tokens: {len(val_data):,}")
 
@@ -117,7 +121,8 @@ def main():
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"parameters: {n_params:,}")
-    wandb.config.update({"n_params": n_params})
+    if use_wandb:
+        wandb.config.update({"n_params": n_params})
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config["lr"])
 
@@ -158,12 +163,13 @@ def main():
                 save_checkpoint("checkpoints/best.pt", step, val_loss)
                 print(f"  → best checkpoint saved (val_loss={val_loss:.4f})")
             print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc)")
-            wandb.log({
-                "train/loss": train_loss,
-                "train/bpc":  train_bpc,
-                "val/loss":   val_loss,
-                "val/bpc":    val_bpc,
-            }, step=step)
+            if use_wandb:
+                wandb.log({
+                    "train/loss": train_loss,
+                    "train/bpc":  train_bpc,
+                    "val/loss":   val_loss,
+                    "val/bpc":    val_bpc,
+                }, step=step)
 
     save_checkpoint("checkpoints/final.pt", config["max_iters"] - 1, val_loss)
     print("final checkpoint saved")
@@ -185,9 +191,9 @@ def main():
     sample_text = tok.decode(generated[0].tolist())
     print("\n=== sample ===")
     print(sample_text)
-    wandb.log({"sample_text": wandb.Html(f"<pre>{sample_text}</pre>")})
-
-    wandb.finish()
+    if use_wandb:
+        wandb.log({"sample_text": wandb.Html(f"<pre>{sample_text}</pre>")})
+        wandb.finish()
 
 
 if __name__ == "__main__":
