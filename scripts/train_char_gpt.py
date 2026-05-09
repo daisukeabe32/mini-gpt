@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import wandb
 
-from src.tokenizer import CharTokenizer
+from src.tokenizer import BPETokenizer, CharTokenizer
 from src.model import MiniGPT
 
 
@@ -57,6 +57,11 @@ def parse_args():
                         help="Steps over which lr linearly warms up from 0 to lr")
     parser.add_argument("--grad_clip",    type=float, default=1.0,
                         help="Max gradient norm for clipping (0 = disabled)")
+    parser.add_argument("--tokenizer",    type=str,   default="char",
+                        choices=["char", "bpe"],
+                        help="Tokenizer type: 'char' (default) or 'bpe'")
+    parser.add_argument("--bpe_vocab_size", type=int, default=512,
+                        help="BPE vocabulary size (used only when --tokenizer bpe)")
     parser.add_argument("--no_wandb",      action="store_true",
                         help="Disable W&B logging (useful for quick test runs)")
     parser.add_argument("--no_checkpoint", action="store_true",
@@ -74,7 +79,12 @@ def main():
     with open("data/shakespeare.txt", "r") as f:
         text = f.read()
 
-    tok = CharTokenizer(text)
+    if args.tokenizer == "bpe":
+        print(f"Training BPE tokenizer (vocab_size={args.bpe_vocab_size})...")
+        tok = BPETokenizer(text, vocab_size=args.bpe_vocab_size)
+        print(f"BPE tokenizer ready: vocab_size={tok.vocab_size}")
+    else:
+        tok = CharTokenizer(text)
     vocab_size = tok.vocab_size
 
     data_ids = torch.tensor(tok.encode(text), dtype=torch.long)
@@ -102,6 +112,7 @@ def main():
         min_lr       = args.min_lr,
         warmup_iters = args.warmup_iters,
         grad_clip    = args.grad_clip,
+        tokenizer    = args.tokenizer,
         vocab_size   = vocab_size,
     )
 
