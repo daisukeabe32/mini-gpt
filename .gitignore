@@ -1,35 +1,43 @@
-# Python
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 .pytest_cache/
 *.pyc
 *.pyo
 *.pyd
-*.pkl
-*.pt
 .ipynb_checkpoints/
+*.egg-info/
 
-# Virtual environments
+# ── Virtual environments ──────────────────────────────────────────────────────
 venv/
 .env/
 .venv/
 env/
 conda_env/
-*.egg-info/
 
-# VSCode settings
+# ── Editors / OS ──────────────────────────────────────────────────────────────
 .vscode/
-
-# macOS system files
 .DS_Store
 
-# data files
-data/
+# ── Large binary artifacts ────────────────────────────────────────────────────
+# PyTorch tensors and pickles (checkpoints, tokenized ids)
+*.pt
+*.pkl
 
-# W&B run logs (synced to cloud, not needed in git)
-wandb/
+# ── Data ──────────────────────────────────────────────────────────────────────
+# Pre-tokenized datasets (large .pt + .json; regenerate via scripts/tokenize_corpus.py)
+data/tokenized/
 
-# Model checkpoints (large binary files, tracked via W&B)
+# Large raw corpora downloaded externally (not committed)
+data/tinystories.txt
+
+# data/shakespeare.txt IS tracked (1.1 MB reference corpus)
+
+# ── Training artifacts ────────────────────────────────────────────────────────
+# Model checkpoints (large binaries; tracked via W&B)
 checkpoints/
 
-# Generated figures from analysis scripts
+# W&B local run cache (synced to cloud)
+wandb/
+
+# Generated figures from analysis scripts (regenerate via scripts/analyze_attention.py)
 figs/

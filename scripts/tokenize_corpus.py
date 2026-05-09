@@ -1,18 +1,23 @@
 """
 One-time corpus tokenization script.
 
-Trains a tokenizer on data/shakespeare.txt, encodes the full corpus,
-and saves everything to data/tokenized/{type}_{vocab_size}/:
+Trains a tokenizer on a raw text corpus, encodes the full corpus,
+and saves everything to data/tokenized/{type}_{vocab_size}_{corpus}/:
 
     tokenizer.json   — tokenizer vocabulary and BPE merges (human-readable)
     train_ids.pt     — encoded training split (first 90%)
     val_ids.pt       — encoded validation split (last 10%)
 
+Directory naming convention:
+    BPE  →  bpe_{vocab_size}_{corpus}    e.g. bpe_3000_shakespeare
+    char →  char_{corpus}                e.g. char_shakespeare
+
 If the target directory already exists the script aborts without
 overwriting, so previously cached results are always safe.
 
 Usage:
-    python -m scripts.tokenize_corpus --tokenizer bpe --bpe_vocab_size 8000
+    python -m scripts.tokenize_corpus --tokenizer bpe --bpe_vocab_size 3000
+    python -m scripts.tokenize_corpus --tokenizer bpe --bpe_vocab_size 3000 --data_path data/shakespeare.txt
     python -m scripts.tokenize_corpus --tokenizer char
 """
 
@@ -26,12 +31,15 @@ from src.tokenizer import BPETokenizer, CharTokenizer
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Tokenize Shakespeare corpus and cache to disk")
+    parser = argparse.ArgumentParser(description="Tokenize a text corpus and cache to disk")
     parser.add_argument("--tokenizer",      type=str, default="char",
                         choices=["char", "bpe"])
     parser.add_argument("--bpe_vocab_size", type=int, default=512,
                         help="Target BPE vocabulary size (ignored for char)")
     parser.add_argument("--data_path",      type=str, default="data/shakespeare.txt")
+    parser.add_argument("--corpus_name",    type=str, default=None,
+                        help="Short corpus label used in the output directory name. "
+                             "Defaults to the stem of --data_path (e.g. 'shakespeare').")
     parser.add_argument("--out_dir",        type=str, default="data/tokenized",
                         help="Parent directory for tokenized outputs")
     return parser.parse_args()
@@ -40,11 +48,14 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # ---- derive corpus label ------------------------------------------------
+    corpus_name = args.corpus_name or os.path.splitext(os.path.basename(args.data_path))[0]
+
     # ---- output directory ---------------------------------------------------
     if args.tokenizer == "bpe":
-        run_name = f"bpe_{args.bpe_vocab_size}"
+        run_name = f"bpe_{args.bpe_vocab_size}_{corpus_name}"
     else:
-        run_name = "char"
+        run_name = f"char_{corpus_name}"
     out_dir = os.path.join(args.out_dir, run_name)
 
     if os.path.exists(out_dir):
