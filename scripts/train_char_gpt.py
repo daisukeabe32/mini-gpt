@@ -62,6 +62,9 @@ def parse_args():
                         help="Tokenizer type: 'char' (default) or 'bpe'")
     parser.add_argument("--bpe_vocab_size", type=int, default=512,
                         help="BPE vocabulary size (used only when --tokenizer bpe)")
+    parser.add_argument("--tokenized_dir", type=str,  default=None,
+                        help="Load pre-tokenized data from this directory "
+                             "(skips tokenizer training and encoding)")
     parser.add_argument("--no_wandb",      action="store_true",
                         help="Disable W&B logging (useful for quick test runs)")
     parser.add_argument("--no_checkpoint", action="store_true",
@@ -76,23 +79,36 @@ def main():
     # --------------------------------------------------
     # 1. corpus & tokenizer
     # --------------------------------------------------
-    with open("data/shakespeare.txt", "r") as f:
-        text = f.read()
-
-    if args.tokenizer == "bpe":
-        print(f"Training BPE tokenizer (vocab_size={args.bpe_vocab_size})...")
-        tok = BPETokenizer(text, vocab_size=args.bpe_vocab_size)
-        print(f"BPE tokenizer ready: vocab_size={tok.vocab_size}")
+    if args.tokenized_dir:
+        # Fast path: load pre-tokenized data from disk
+        print(f"Loading pre-tokenized data from '{args.tokenized_dir}'...")
+        import json as _json
+        with open(os.path.join(args.tokenized_dir, "tokenizer.json")) as _f:
+            _meta = _json.load(_f)
+        tok_type = _meta["type"]
+        if tok_type == "bpe":
+            tok = BPETokenizer.load(args.tokenized_dir)
+        else:
+            tok = CharTokenizer.load(args.tokenized_dir)
+        train_data = torch.load(os.path.join(args.tokenized_dir, "train_ids.pt"))
+        val_data   = torch.load(os.path.join(args.tokenized_dir, "val_ids.pt"))
+        print(f"Loaded: vocab_size={tok.vocab_size}  "
+              f"train={len(train_data):,}  val={len(val_data):,}")
     else:
-        tok = CharTokenizer(text)
+        # Standard path: tokenize from raw text
+        with open("data/shakespeare.txt", "r") as f:
+            text = f.read()
+        if args.tokenizer == "bpe":
+            print(f"Training BPE tokenizer (vocab_size={args.bpe_vocab_size})...")
+            tok = BPETokenizer(text, vocab_size=args.bpe_vocab_size)
+            print(f"BPE tokenizer ready: vocab_size={tok.vocab_size}")
+        else:
+            tok = CharTokenizer(text)
+        data_ids = torch.tensor(tok.encode(text), dtype=torch.long)
+        n = int(0.9 * len(data_ids))
+        train_data = data_ids[:n]
+        val_data   = data_ids[n:]
     vocab_size = tok.vocab_size
-
-    data_ids = torch.tensor(tok.encode(text), dtype=torch.long)
-
-    # 90/10 train/val split
-    n = int(0.9 * len(data_ids))
-    train_data = data_ids[:n]
-    val_data   = data_ids[n:]
 
     # --------------------------------------------------
     # 2. hyperparameters
