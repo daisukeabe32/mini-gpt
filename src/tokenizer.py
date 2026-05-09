@@ -1,5 +1,7 @@
 # src/tokenizer.py
 
+import json
+import os
 from collections import Counter
 
 
@@ -21,7 +23,7 @@ class BPETokenizer:
     swapped with a single flag in the training script.
     """
 
-    def __init__(self, text: str, vocab_size: int = 512):
+    def __init__(self, text: str, vocab_size: int = 512, verbose: bool = False):
         # ---- 1. character-level seed vocabulary -------------------------
         chars = sorted(set(text))
         self.stoi: dict = {ch: i for i, ch in enumerate(chars)}
@@ -33,7 +35,7 @@ class BPETokenizer:
         ids = [self.stoi[ch] for ch in text]   # working token sequence
         n_merges = max(0, vocab_size - len(chars))
 
-        for _ in range(n_merges):
+        for step in range(n_merges):
             counts = Counter(zip(ids[:-1], ids[1:]))
             if not counts:
                 break
@@ -44,6 +46,9 @@ class BPETokenizer:
             self.itos[new_id] = new_token
             self.merges.append((best_pair, new_id))
             ids = self._apply_merge(ids, best_pair, new_id)
+            if verbose and (step + 1) % 100 == 0:
+                print(f"  merge {step + 1}/{n_merges} | vocab={len(self.stoi)} | "
+                      f"seq_len={len(ids):,} | last: '{new_token}'")
 
         self.vocab_size = len(self.stoi)
 
@@ -83,6 +88,40 @@ class BPETokenizer:
         """Convert a list of BPE token IDs back to the original string."""
         return "".join(self.itos[i] for i in ids)
 
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def save(self, dir_path: str) -> None:
+        """
+        Save tokenizer state to dir_path/tokenizer.json.
+        Creates the directory if it does not exist.
+        """
+        os.makedirs(dir_path, exist_ok=True)
+        payload = {
+            "type": "bpe",
+            "vocab_size": self.vocab_size,
+            # itos keys must be strings in JSON
+            "itos": {str(k): v for k, v in self.itos.items()},
+            # merges: [[id_a, id_b, new_id], ...]
+            "merges": [[p[0], p[1], new_id] for p, new_id in self.merges],
+        }
+        with open(os.path.join(dir_path, "tokenizer.json"), "w") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    @classmethod
+    def load(cls, dir_path: str) -> "BPETokenizer":
+        """Load a previously saved BPETokenizer from dir_path/tokenizer.json."""
+        with open(os.path.join(dir_path, "tokenizer.json")) as f:
+            payload = json.load(f)
+        assert payload["type"] == "bpe", "tokenizer.json is not a BPE tokenizer"
+        tok = cls.__new__(cls)
+        tok.itos = {int(k): v for k, v in payload["itos"].items()}
+        tok.stoi = {v: int(k) for k, v in payload["itos"].items()}
+        tok.merges = [((a, b), new_id) for a, b, new_id in payload["merges"]]
+        tok.vocab_size = payload["vocab_size"]
+        return tok
+
 
 class CharTokenizer:
     """
@@ -113,3 +152,28 @@ class CharTokenizer:
         Convert list of token IDs back to string.
         """
         return "".join(self.itos[i] for i in ids)
+
+    def save(self, dir_path: str) -> None:
+        """Save tokenizer state to dir_path/tokenizer.json."""
+        os.makedirs(dir_path, exist_ok=True)
+        payload = {
+            "type": "char",
+            "vocab_size": self.vocab_size,
+            "itos": {str(k): v for k, v in self.itos.items()},
+            "merges": [],
+        }
+        with open(os.path.join(dir_path, "tokenizer.json"), "w") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    @classmethod
+    def load(cls, dir_path: str) -> "CharTokenizer":
+        """Load a previously saved CharTokenizer from dir_path/tokenizer.json."""
+        with open(os.path.join(dir_path, "tokenizer.json")) as f:
+            payload = json.load(f)
+        assert payload["type"] == "char", "tokenizer.json is not a char tokenizer"
+        tok = cls.__new__(cls)
+        tok.itos = {int(k): v for k, v in payload["itos"].items()}
+        tok.stoi = {v: int(k) for k, v in payload["itos"].items()}
+        tok.vocab = list(tok.stoi.keys())
+        tok.vocab_size = payload["vocab_size"]
+        return tok
