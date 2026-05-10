@@ -201,7 +201,12 @@ def print_induction_scores(all_weights, n_layers, num_heads, seq_len):
 
 def main():
     args   = parse_args()
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
     os.makedirs(args.out_dir, exist_ok=True)
 
     model, tok, cfg = load_model(args.checkpoint, device)

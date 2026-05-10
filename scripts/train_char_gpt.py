@@ -69,6 +69,12 @@ def parse_args():
                         help="Disable W&B logging (useful for quick test runs)")
     parser.add_argument("--no_checkpoint", action="store_true",
                         help="Disable checkpoint saving (useful for quick test runs)")
+    parser.add_argument("--checkpoint_dir", type=str, default="checkpoints",
+                        help="Base directory for checkpoint saving (e.g. a Google Drive path)")
+    parser.add_argument("--save_every",     type=int, default=5000,
+                        help="Save a numbered checkpoint every N steps for emergence analysis "
+                             "(0 = disabled). Snapshots are saved at eval points that are "
+                             "multiples of this value.")
     return parser.parse_args()
 
 
@@ -134,7 +140,12 @@ def main():
         vocab_size   = vocab_size,
     )
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
 
     # --------------------------------------------------
     # 3. W&B init
@@ -197,7 +208,7 @@ def main():
     if save_ckpt:
         from datetime import datetime
         run_id   = datetime.now().strftime("%Y%m%d_%H%M%S")
-        ckpt_dir = os.path.join("checkpoints", run_id)
+        ckpt_dir = os.path.join(args.checkpoint_dir, run_id)
         os.makedirs(ckpt_dir, exist_ok=True)
         print(f"checkpoint dir: {ckpt_dir}")
     best_val_loss = float("inf")
@@ -247,6 +258,9 @@ def main():
                 best_val_loss = val_loss
                 save_checkpoint("best", step, val_loss)
                 print(f"  → best checkpoint saved (val_loss={val_loss:.4f})")
+            if args.save_every > 0 and step > 0 and step % args.save_every == 0:
+                save_checkpoint(f"step_{step:06d}", step, val_loss)
+                print(f"  → snapshot saved (step={step})")
             print(f"step {step:04d} | train loss {train_loss:.4f} ({train_bpc:.3f} bpc) | val loss {val_loss:.4f} ({val_bpc:.3f} bpc) | grad_norm {mean_grad_norm:.3f}")
             if use_wandb:
                 wandb.log({
