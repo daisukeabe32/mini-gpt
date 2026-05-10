@@ -4,6 +4,8 @@ import json
 import os
 from collections import Counter
 
+import numpy as np
+
 
 class BPETokenizer:
     """
@@ -121,6 +123,66 @@ class BPETokenizer:
         tok.merges = [((a, b), new_id) for a, b, new_id in payload["merges"]]
         tok.vocab_size = payload["vocab_size"]
         return tok
+
+
+class HFBPETokenizer:
+    """
+    BPE tokenizer backed by HuggingFace `tokenizers` (Rust implementation).
+    Trains on GB-scale corpora in minutes. Same interface as BPETokenizer.
+
+    Unlike BPETokenizer (which takes a text string), this class takes a
+    file_path so the corpus never needs to be loaded fully into Python memory.
+    """
+
+    def __init__(self, file_path: str, vocab_size: int = 30000, verbose: bool = False):
+        from tokenizers import Tokenizer
+        from tokenizers.models import BPE
+        from tokenizers.trainers import BpeTrainer
+
+        tokenizer = Tokenizer(BPE(unk_token="[UNK]"))
+        trainer = BpeTrainer(
+            vocab_size=vocab_size,
+            special_tokens=["[UNK]"],
+            show_progress=verbose,
+        )
+        tokenizer.train([file_path], trainer)
+        self._tok = tokenizer
+        self.vocab_size = tokenizer.get_vocab_size()
+        self.stoi: dict = tokenizer.get_vocab()
+        self.itos: dict = {v: k for k, v in self.stoi.items()}
+
+    def encode(self, text: str) -> list:
+        return self._tok.encode(text).ids
+
+    def encode_file(self, file_path: str, chunk_size: int = 5_000_000) -> np.ndarray:
+        """Encode a large file in chunks, returning an int32 numpy array."""
+        parts = []
+        with open(file_path, "r", encoding="utf-8") as f:
+            while True:
+                chunk = f.read(chunk_size)
+                if not chunk:
+                    break
+                parts.append(np.array(self._tok.encode(chunk).ids, dtype=np.int32))
+        return np.concatenate(parts)
+
+    def decode(self, ids: list) -> str:
+        return self._tok.decode(ids)
+
+    def save(self, dir_path: str) -> None:
+        os.makedirs(dir_path, exist_ok=True)
+        self._tok.save(os.path.join(dir_path, "hf_tokenizer.json"))
+        with open(os.path.join(dir_path, "tokenizer.json"), "w") as f:
+            json.dump({"type": "bpe_hf", "vocab_size": self.vocab_size}, f)
+
+    @classmethod
+    def load(cls, dir_path: str) -> "HFBPETokenizer":
+        from tokenizers import Tokenizer as _Tok
+        obj = cls.__new__(cls)
+        obj._tok = _Tok.from_file(os.path.join(dir_path, "hf_tokenizer.json"))
+        obj.vocab_size = obj._tok.get_vocab_size()
+        obj.stoi = obj._tok.get_vocab()
+        obj.itos = {v: k for k, v in obj.stoi.items()}
+        return obj
 
 
 class CharTokenizer:

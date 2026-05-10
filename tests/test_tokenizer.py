@@ -1,5 +1,8 @@
+import os
+import tempfile
+
 import pytest
-from src.tokenizer import BPETokenizer, CharTokenizer
+from src.tokenizer import BPETokenizer, CharTokenizer, HFBPETokenizer
 
 
 TEXT = "hello world!"
@@ -90,3 +93,64 @@ class TestBPETokenizer:
     def test_unknown_char_raises(self, bpe_tok):
         with pytest.raises(KeyError):
             bpe_tok.encode("Z")
+
+
+# ---------------------------------------------------------------------------
+# HFBPETokenizer
+# ---------------------------------------------------------------------------
+
+HF_CORPUS = (
+    "Once upon a time there was a small cat. "
+    "The cat sat on the mat. "
+    "Once upon a time there was a small dog. "
+    "The dog ran in the park. " * 20
+)
+
+
+@pytest.fixture
+def hf_tok_file(tmp_path):
+    p = tmp_path / "corpus.txt"
+    p.write_text(HF_CORPUS, encoding="utf-8")
+    return str(p)
+
+
+@pytest.fixture
+def hf_tok(hf_tok_file):
+    chars = len(set(HF_CORPUS))
+    return HFBPETokenizer(hf_tok_file, vocab_size=chars + 10)
+
+
+class TestHFBPETokenizer:
+    def test_vocab_size_set(self, hf_tok):
+        assert hf_tok.vocab_size > 0
+
+    def test_encode_returns_ints(self, hf_tok):
+        ids = hf_tok.encode("Once upon a time")
+        assert ids and all(isinstance(i, int) for i in ids)
+
+    def test_decode_returns_string(self, hf_tok):
+        ids = hf_tok.encode("Once upon a time")
+        result = hf_tok.decode(ids)
+        assert isinstance(result, str) and len(result) > 0
+
+    def test_stoi_itos_consistency(self, hf_tok):
+        for token, idx in list(hf_tok.stoi.items())[:50]:
+            assert hf_tok.itos[idx] == token
+
+    def test_compression(self, hf_tok, hf_tok_file):
+        ids = hf_tok.encode_file(hf_tok_file)
+        assert len(ids) < len(HF_CORPUS)
+
+    def test_save_load_roundtrip(self, hf_tok, tmp_path):
+        hf_tok.save(str(tmp_path))
+        loaded = HFBPETokenizer.load(str(tmp_path))
+        assert loaded.vocab_size == hf_tok.vocab_size
+        ids_orig   = hf_tok.encode("Once upon a time")
+        ids_loaded = loaded.encode("Once upon a time")
+        assert ids_orig == ids_loaded
+
+    def test_tokenizer_json_type(self, hf_tok, tmp_path):
+        import json
+        hf_tok.save(str(tmp_path))
+        meta = json.load(open(tmp_path / "tokenizer.json"))
+        assert meta["type"] == "bpe_hf"

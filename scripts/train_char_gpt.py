@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 import wandb
 
-from src.tokenizer import BPETokenizer, CharTokenizer
+from src.tokenizer import BPETokenizer, CharTokenizer, HFBPETokenizer
 from src.model import MiniGPT
 
 
@@ -58,8 +58,8 @@ def parse_args():
     parser.add_argument("--grad_clip",    type=float, default=1.0,
                         help="Max gradient norm for clipping (0 = disabled)")
     parser.add_argument("--tokenizer",    type=str,   default="char",
-                        choices=["char", "bpe"],
-                        help="Tokenizer type: 'char' (default) or 'bpe'")
+                        choices=["char", "bpe", "bpe_hf"],
+                        help="Tokenizer type: 'char', 'bpe', or 'bpe_hf'")
     parser.add_argument("--bpe_vocab_size", type=int, default=512,
                         help="BPE vocabulary size (used only when --tokenizer bpe)")
     parser.add_argument("--tokenized_dir", type=str,  default=None,
@@ -86,7 +86,9 @@ def main():
         with open(os.path.join(args.tokenized_dir, "tokenizer.json")) as _f:
             _meta = _json.load(_f)
         tok_type = _meta["type"]
-        if tok_type == "bpe":
+        if tok_type == "bpe_hf":
+            tok = HFBPETokenizer.load(args.tokenized_dir)
+        elif tok_type == "bpe":
             tok = BPETokenizer.load(args.tokenized_dir)
         else:
             tok = CharTokenizer.load(args.tokenized_dir)
@@ -262,7 +264,9 @@ def main():
     # 6. text generation sample
     # --------------------------------------------------
     model.eval()
-    context = torch.tensor([[tok.stoi["h"]]], dtype=torch.long, device=device)
+    start_text = "h" if isinstance(tok, CharTokenizer) else "Once "
+    start_ids = tok.encode(start_text)
+    context = torch.tensor([start_ids], dtype=torch.long, device=device)
     generated = context
     for _ in range(500):
         idx_cond    = generated[:, -config["block_size"]:]
