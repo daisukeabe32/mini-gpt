@@ -75,6 +75,9 @@ def parse_args():
                         help="Save a numbered checkpoint every N steps for emergence analysis "
                              "(0 = disabled). Snapshots are saved at eval points that are "
                              "multiples of this value.")
+    parser.add_argument("--resume_from",    type=str, default=None,
+                        help="Path to a checkpoint .pt file to resume training from. "
+                             "Restores model weights, optimizer state, and step counter.")
     return parser.parse_args()
 
 
@@ -219,18 +222,33 @@ def main():
             return
         path = os.path.join(ckpt_dir, f"{tag}.pt")
         torch.save({
-            "model_state": model.state_dict(),
-            "config":      config,
-            "stoi":        tok.stoi,
-            "itos":        tok.itos,
-            "step":        step,
-            "val_loss":    val_loss,
+            "model_state":     model.state_dict(),
+            "optimizer_state": optimizer.state_dict(),
+            "config":          config,
+            "stoi":            tok.stoi,
+            "itos":            tok.itos,
+            "step":            step,
+            "val_loss":        val_loss,
         }, path)
         return path
 
+    # --------------------------------------------------
+    # Resume from checkpoint if requested
+    # --------------------------------------------------
+    start_step = 0
+    if args.resume_from:
+        print(f"Resuming from '{args.resume_from}'...")
+        resume_ckpt = torch.load(args.resume_from, map_location=device)
+        model.load_state_dict(resume_ckpt["model_state"])
+        if "optimizer_state" in resume_ckpt:
+            optimizer.load_state_dict(resume_ckpt["optimizer_state"])
+        start_step    = resume_ckpt["step"] + 1
+        best_val_loss = resume_ckpt["val_loss"]
+        print(f"  → step={start_step}  best_val_loss={best_val_loss:.4f}")
+
     model.train()
     grad_norms = []
-    for step in range(config["max_iters"]):
+    for step in range(start_step, config["max_iters"]):
         # Update learning rate according to cosine schedule
         lr = get_lr(step)
         for param_group in optimizer.param_groups:
