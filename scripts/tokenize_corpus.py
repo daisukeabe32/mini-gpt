@@ -43,8 +43,12 @@ def parse_args():
                         choices=["char", "bpe", "bpe_hf"])
     parser.add_argument("--bpe_vocab_size", type=int, default=512,
                         help="Target BPE vocabulary size (ignored for char)")
-    parser.add_argument("--data_path",      type=str, default="data/shakespeare.txt")
-    parser.add_argument("--corpus_name",    type=str, default=None,
+    parser.add_argument("--data_path",           type=str, default="data/shakespeare.txt")
+    parser.add_argument("--tokenizer_train_path", type=str, default=None,
+                        help="(bpe_hf only) Train the tokenizer on this file and encode "
+                             "--data_path. Useful when the full corpus is too large to fit "
+                             "in RAM during BPE training. Defaults to --data_path.")
+    parser.add_argument("--corpus_name",          type=str, default=None,
                         help="Short corpus label used in the output directory name. "
                              "Defaults to the stem of --data_path (e.g. 'shakespeare').")
     parser.add_argument("--out_dir",        type=str, default="data/tokenized",
@@ -79,8 +83,12 @@ def main():
 
     # ---- bpe_hf path: file-based, no full load into memory ------------------
     if args.tokenizer == "bpe_hf":
+        train_path = args.tokenizer_train_path or args.data_path
+        if train_path != args.data_path:
+            train_mb = os.path.getsize(train_path) / 1024 / 1024
+            print(f"Tokenizer training corpus: {train_path}  ({train_mb:.1f} MB)")
         print(f"Training HF BPE tokenizer (vocab_size={args.bpe_vocab_size})...")
-        tok = HFBPETokenizer(args.data_path, vocab_size=args.bpe_vocab_size, verbose=True)
+        tok = HFBPETokenizer(train_path, vocab_size=args.bpe_vocab_size, verbose=True)
         print(f"Tokenizer ready: vocab_size={tok.vocab_size}  ({time.time()-t0:.1f}s)")
 
         print("Encoding corpus (chunked)...")
