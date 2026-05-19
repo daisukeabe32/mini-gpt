@@ -41,3 +41,7 @@ wandb/
 
 # Generated figures from analysis scripts (regenerate via scripts/analyze_attention.py)
 figs/
+
+# ── Personal runbooks / operational notes ─────────────────────────────────────
+# Account-specific Kaggle procedures; not part of the codebase
+KAGGLE_RUNBOOK.md

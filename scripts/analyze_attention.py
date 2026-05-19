@@ -34,8 +34,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Analyze attention patterns for induction heads")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/best.pt",
                         help="Path to checkpoint file")
-    parser.add_argument("--seq_len",    type=int, default=64,
-                        help="Half-length of the repeated sequence (total = 2 * seq_len)")
+    parser.add_argument("--seq_lens",   type=int, nargs="+", default=[8, 16, 32, 64],
+                        help="Half-lengths to test (total = 2 * seq_len each). "
+                             "Example: --seq_lens 16 32 64")
     parser.add_argument("--out_dir",    type=str, default="figs",
                         help="Directory to save figures")
     return parser.parse_args()
@@ -280,24 +281,57 @@ def main():
 
     model, tok, cfg = load_model(args.checkpoint, device)
 
-    # Clip seq_len to model's block_size limit
-    max_half = cfg["block_size"] // 2
-    seq_len  = min(args.seq_len, max_half)
-    print(f"\nSequence: {seq_len} tokens × 2 = {2 * seq_len} total")
+    max_half    = cfg["block_size"] // 2
+    seq_lens    = [min(s, max_half) for s in args.seq_lens]
+    seq_lens    = sorted(set(seq_lens))  # deduplicate, keep sorted
 
-    ids, seq = make_repeated_sequence(tok, seq_len, device)
-    all_weights, all_head_outputs = extract_attention(model, ids)
+    # Per-seq_len results for summary table
+    summary = []  # [(seq_len, best_layer, best_head, best_pm, best_cp)]
 
-    # Scores (both prefix-matching and copying)
-    print_induction_scores(model, all_weights, all_head_outputs, ids, cfg["n_layers"], cfg["num_heads"], seq_len)
+    for seq_len in seq_lens:
+        print(f"\n{'='*60}")
+        print(f"seq_len = {seq_len}  (total sequence: {2 * seq_len} tokens)")
+        print(f"{'='*60}")
 
-    # Heatmap grid
-    out_path = os.path.join(args.out_dir, "attention_grid.png")
-    plot_attention_grid(
-        all_weights, seq,
-        cfg["n_layers"], cfg["num_heads"], seq_len,
-        out_path,
-    )
+        ids, seq = make_repeated_sequence(tok, seq_len, device)
+        all_weights, all_head_outputs = extract_attention(model, ids)
+
+        # Scores table
+        print_induction_scores(
+            model, all_weights, all_head_outputs, ids,
+            cfg["n_layers"], cfg["num_heads"], seq_len,
+        )
+
+        # Collect best head for summary
+        best = max(
+            (
+                (induction_score(all_weights[l][:, h], seq_len),
+                 l + 1, h + 1)
+                for l in range(cfg["n_layers"])
+                for h in range(cfg["num_heads"])
+            ),
+            key=lambda x: x[0],
+        )
+        best_pm, best_layer, best_head = best
+        summary.append((seq_len, best_layer, best_head, best_pm))
+
+        # Heatmap grid — one file per seq_len
+        out_path = os.path.join(args.out_dir, f"attention_grid_seqlen{seq_len}.png")
+        plot_attention_grid(
+            all_weights, seq,
+            cfg["n_layers"], cfg["num_heads"], seq_len,
+            out_path,
+        )
+
+    # Summary across all seq_lens
+    print(f"\n{'='*60}")
+    print("Summary — max PrefixMatch score by seq_len")
+    print(f"{'='*60}")
+    print(f"{'seq_len':>8}  {'best head':>10}  {'PrefixMatch':>12}  {'detected':>9}")
+    print("-" * 46)
+    for seq_len, layer, head, pm in summary:
+        flag = "✓ YES" if pm >= 0.1 else "  no"
+        print(f"{seq_len:>8}  L{layer}H{head:>7}  {pm:>12.4f}  {flag:>9}")
 
 
 if __name__ == "__main__":
