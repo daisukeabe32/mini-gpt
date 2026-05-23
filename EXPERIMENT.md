@@ -199,3 +199,55 @@ The phase change (when L2H6 emerged during training) remains unobserved.
 To answer this, snapshots from 0 to ~1.5B tokens are needed.
 Options: (A) re-run training with full snapshot preservation, (B) accept
 that the circuit exists post-training and focus analysis on its properties.
+
+---
+
+# EXP-002: Full Emergence Curve (fresh run from step 0)
+2026.May.19 — ongoing
+
+## Goal
+
+Observe the full emergence curve of L2H6 induction head from 0 to 1.97B tokens,
+with multi-scale analysis (seq_lens = 8, 16, 32, 64) per snapshot.
+
+## Setup
+
+Identical to EXP-001 (Olsson-approximate). Cell version: git commit `91d5ffb`.
+
+## Training Sessions
+
+| Session | Kaggle Notebook | Steps | Tokens | GPU | Status |
+|---------|----------------|-------|--------|-----|--------|
+| 1 | EXP-002 | 0 → 48,000 | 0 → 0.79B | T4 x2 | ✅ 完了（quota 使い切り） |
+| 2 | EXP-002 resume(1.0) | 48,001 → ? | 0.79B → ? | T4 x2 | 🔄 実行中（2026-05-23〜） |
+| 3 | （予定） | ? → 120,000 | ? → 1.97B | T4 x2 | 🔲 未開始 |
+
+## Operational notes — Kaggle resume 手順（今後の参照用）
+
+### GPU 選択
+- **T4 x2 を使う**。T4 x1 という選択肢は Kaggle に存在しない（P100 x1 / T4 x2 / GPU なし）。
+- **P100 は使用不可**。PyTorch 2.x が P100（compute capability sm_60）のカーネルを非サポート。
+  起動直後に `CUDA error: no kernel image is available` でクラッシュする。
+- T4 x2 はクォータを **2h / wall-clock 1h** で消費する点に注意。
+
+### 前 session の snapshot を引き継ぐ方法
+1. 新 Notebook → 右サイドバー → **Input → + Add Input**
+2. **"Notebook Outputs" タブ**を選ぶ（"Datasets" タブではない）
+3. 前 session の Notebook を選択 → 追加
+   → `step_*.pt` が `/kaggle/input/notebooks/da3246/{slug}/checkpoints/...` 以下にマウントされる
+
+### RESUME_PT のパス形式
+```
+/kaggle/input/notebooks/da3246/{notebook-slug}/checkpoints/{YYYYMMDD_HHMMSS}/best.pt
+```
+- `{notebook-slug}` = Notebook 名を lowercase + hyphen に変換（例: "EXP-002" → `exp-002`）
+- Cell 9 を draft モードで単体実行すれば正確なパスが表示される
+
+### Cell 13（emergence curve）の動作
+- `/kaggle/working/checkpoints/*/step_*.pt`（今 session）
+- `/kaggle/input/**/step_*.pt`（前 session）
+の両方を自動スキャンするため、前 session Output を Input に追加するだけで全 snapshot がつながる。
+
+## Results
+
+（完了後に記入）
