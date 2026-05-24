@@ -1,6 +1,8 @@
 # M3 Experiment: Induction Head Detection — Char vs BPE Tokenization
 2026.May.09
 
+_This file records scientific findings only. For operational procedures, see KAGGLE_RUNBOOK.md._
+
 ## Hypothesis
 
 Induction heads (Olsson et al. 2022) are attention heads that implement the
@@ -138,10 +140,6 @@ Training was split across 3 Kaggle sessions (12h quota per session):
 | 2 | 53,001 → 98,000 | 0.87B → 1.61B | Timed out at 12h |
 | 3 | 98,001 → 119,999 | 1.61B → 1.97B | Completed normally |
 
-Resume procedure: download `best.pt` from previous session Output →
-upload as Kaggle Dataset → set `RESUME_PT` in Cell 7b of `kaggle_olsson.ipynb`.
-Model loads optimizer state and step counter from the checkpoint and continues seamlessly.
-
 ## Results
 
 ### Final checkpoint (step 115,000 / best.pt)
@@ -219,35 +217,9 @@ Identical to EXP-001 (Olsson-approximate). Cell version: git commit `91d5ffb`.
 | Session | Kaggle Notebook | Steps | Tokens | GPU | Status |
 |---------|----------------|-------|--------|-----|--------|
 | 1 | EXP-002 | 0 → 48,000 | 0 → 0.79B | T4 x2 | ✅ 完了（quota 使い切り） |
-| 2 | EXP-002 resume(1.0) | 48,001 → ? | 0.79B → ? | T4 x2 | 🔄 実行中（2026-05-23〜） |
-| 3 | （予定） | ? → 120,000 | ? → 1.97B | T4 x2 | 🔲 未開始 |
+| 2 | EXP-002 resume(1.0) | 48,001 → 93,000 | 0.79B → 1.53B | T4 x2 | ✅ 完了（12h timeout、step 93,000） |
+| 3 | （予定） | 93,001 → 120,000 | 1.53B → 1.97B | T4 x2 | 🔲 未開始 |
 
-## Operational notes — Kaggle resume 手順（今後の参照用）
-
-### GPU 選択
-- **T4 x2 を使う**。T4 x1 という選択肢は Kaggle に存在しない（P100 x1 / T4 x2 / GPU なし）。
-- **P100 は使用不可**。PyTorch 2.x が P100（compute capability sm_60）のカーネルを非サポート。
-  起動直後に `CUDA error: no kernel image is available` でクラッシュする。
-- T4 x2 はクォータを **2h / wall-clock 1h** で消費する点に注意。
-
-### 前 session の snapshot を引き継ぐ方法
-1. 新 Notebook → 右サイドバー → **Input → + Add Input**
-2. **"Notebook Outputs" タブ**を選ぶ（"Datasets" タブではない）
-3. 前 session の Notebook を選択 → 追加
-   → `step_*.pt` が `/kaggle/input/notebooks/da3246/{slug}/checkpoints/...` 以下にマウントされる
-
-### RESUME_PT のパス形式
-```
-/kaggle/input/notebooks/da3246/{notebook-slug}/checkpoints/{YYYYMMDD_HHMMSS}/best.pt
-```
-- `{notebook-slug}` = Notebook 名を lowercase + hyphen に変換（例: "EXP-002" → `exp-002`）
-- Cell 9 を draft モードで単体実行すれば正確なパスが表示される
-
-### Cell 13（emergence curve）の動作
-- `/kaggle/working/checkpoints/*/step_*.pt`（今 session）
-- `/kaggle/input/**/step_*.pt`（前 session）
-の両方を自動スキャンするため、前 session Output を Input に追加するだけで全 snapshot がつながる。
-
-## Results
+## Results（完了後に記入）
 
 （完了後に記入）
