@@ -218,8 +218,198 @@ Identical to EXP-001 (Olsson-approximate). Cell version: git commit `91d5ffb`.
 |---------|----------------|-------|--------|-----|--------|
 | 1 | EXP-002 | 0 → 48,000 | 0 → 0.79B | T4 x2 | ✅ 完了（quota 使い切り） |
 | 2 | EXP-002 resume(1.0) | 48,001 → 93,000 | 0.79B → 1.53B | T4 x2 | ✅ 完了（12h timeout、step 93,000） |
-| 3 | （予定） | 93,001 → 120,000 | 1.53B → 1.97B | T4 x2 | 🔲 未開始 |
+| 3 | EXP-002 resume(2.0) | 93,001 → 119,999 | 1.53B → 1.97B | T4 x2 | ✅ 完了（2026-05-24） |
 
-## Results（完了後に記入）
+## Results
 
-（完了後に記入）
+### Training — Session 3 (step 93,001 → 119,999)
+
+| Step | val_loss | Notes |
+|------|----------|-------|
+| 93,001 | 3.1059 | resume start |
+| 98,000 | 3.0907 | |
+| 105,000 | 3.0740 | |
+| **110,000** | **3.0586** | **best checkpoint** |
+| 119,999 | 3.0665 | final |
+
+### Induction Head Analysis — Cell 12 (best.pt, step 110,000)
+
+| seq_len | best head | PrefixMatch | Detected |
+|---------|-----------|-------------|---------|
+| 8 | L2H6 | **0.2832** | ✓ YES |
+| 16 | L2H6 | **0.1857** | ✓ YES |
+| 32 | L2H6 | **0.1096** | ✓ YES |
+| 64 | L2H6 | 0.0394 | ✗ no |
+
+L2H6 is the dominant induction head. Score decays with seq_len, confirming the
+distance-dependent circuit property observed in EXP-001.
+
+### Emergence Curve — Cell 13 (59 snapshots, step 2,000–118,000)
+
+Complete curve spanning 0.033B → 1.933B tokens (all 3 sessions).
+
+**Key data points (max PrefixMatch across all heads and seq_lens):**
+
+| step | tokens | max_induction | head | note |
+|------|--------|--------------|------|------|
+| 2,000 | 0.033B | 0.1119 | L1H4 | transient; different head |
+| 4,000 | 0.066B | 0.0860 | L1H3 | below threshold |
+| 6,000 | 0.098B | 0.0957 | L2H6 | below threshold |
+| **8,000** | **0.131B** | **0.1483** | **L2H6** | **stable emergence begins** |
+| 10,000 | 0.164B | 0.1635 | L2H6 | |
+| 12,000 | 0.197B | 0.1968 | L2H6 | |
+| 26,000 | 0.426B | 0.2913 | L2H6 | |
+| 42,000 | 0.688B | **0.3342** | L2H6 | peak |
+| 50,000 | 0.819B | 0.2821 | L2H6 | plateau begins |
+| 92,000 | 1.507B | 0.2754 | L2H6 | |
+| 118,000 | 1.933B | 0.2851 | L2H6 | |
+
+Figure: `figs/emergence_curve.png`
+
+### Phase Change Timing
+
+**L2H6 stably crosses threshold 0.1 at step 8,000 (~0.131B tokens).**
+
+Emergence sequence:
+1. **step 2,000** (0.033B): L1H4 shows a transient spike (0.1119) — early unstable candidate
+2. **step 4,000–6,000** (0.066–0.098B): all heads drop below threshold
+3. **step 8,000** (0.131B): L2H6 crosses 0.1 and remains above threshold through end of training
+4. **step 8,000–42,000**: score rises from 0.148 to 0.334
+5. **step 42,000–119,999**: plateau in 0.25–0.33 range; no second phase change observed
+
+No phase change is observed near the Olsson et al. threshold of ~1.5B tokens.
+
+## Interpretation
+
+### Main finding
+
+The induction head L2H6 emerges at **~0.131B tokens** (step 8,000) in a 21.8M parameter
+model — far earlier than Olsson et al.'s reported ~1.5B token threshold.
+
+This is consistent with **phase change timing scaling with model size**: Olsson et al.'s
+1.5B token estimate corresponds to larger models. A 21.8M parameter model trained on
+simple narrative text develops the induction circuit much sooner in absolute token count.
+
+### Transient head at step 2,000
+
+At step 2,000, L1H4 briefly scores above threshold before dropping. This is likely
+a "proto-induction" signal — an early, unstable attention pattern that has not yet
+consolidated into a clean circuit. L2H6 takes over by step 8,000 as the stable
+induction circuit.
+
+### Distance dependence (stable across training)
+
+L2H6's score decays with seq_len throughout training and in the final checkpoint:
+
+| seq_len | PrefixMatch (final) |
+|---------|---------------------|
+| 8 | 0.2832 |
+| 16 | 0.1857 |
+| 32 | 0.1096 |
+| 64 | 0.0394 |
+
+The circuit operates most strongly on short-range patterns, consistent with
+TinyStories' statistical structure (short, simple sentences with limited long-range
+repetition).
+
+### Comparison with Olsson et al. (2022)
+
+| Property | Olsson et al. | This work |
+|---|---|---|
+| Phase change at | ~1.5B tokens | **~0.131B tokens** |
+| Architecture | 2-layer | 2-layer |
+| Dataset | diverse web text | TinyStories |
+| Induction score @ optimal seq_len | ~1.0 (their metric) | 0.28–0.33 |
+| Score at long seq_len | remains high | decays to ~0.04 |
+
+The earlier emergence and distance-dependent decay likely both reflect the
+simpler statistical structure of TinyStories compared to diverse web corpora:
+fewer long-range dependencies → less training signal for long-range induction circuits
+→ circuit forms earlier but with shorter effective reach.
+
+---
+
+# EXP-003 Series: Phase Change Timing vs. Dataset Complexity
+2026.May.24 — planned
+
+## Hypothesis
+
+Phase change timing (the token count at which an induction head crosses the detection
+threshold) is not a fixed constant (~1.5B tokens as reported by Olsson et al.) but
+varies with **dataset complexity**: simpler, more repetitive corpora produce earlier
+phase changes because the induction circuit requires less exposure to learn the
+[A][B]...[A]→[B] pattern.
+
+If this hypothesis holds, the three datasets should produce phase change timings
+ordered as follows:
+
+```
+GitHub Code  <  TinyStories  <  WikiText-103
+ (earliest)      (0.131B)       (latest)
+```
+
+Code is the most structurally repetitive (function signatures, keywords, syntax),
+so the induction circuit should form earliest. WikiText-103 contains encyclopedic
+prose with diverse vocabulary and longer-range dependencies, so it should take the
+longest. TinyStories, already completed, sits in the middle as the reference point.
+
+## Experimental Design
+
+All three runs share identical model architecture and training hyperparameters.
+Only the dataset changes.
+
+### Fixed parameters (all runs)
+
+| Parameter | Value |
+|---|---|
+| n_layers | 2 |
+| d_model | 512 |
+| num_heads | 8 |
+| d_k | 64 |
+| d_ff | 2,048 |
+| block_size | 256 |
+| batch_size | 64 |
+| max_iters | 120,000 |
+| Tokenizer | BPE-30K (trained separately on each corpus) |
+| save_every | 2,000 steps |
+| Analysis | seq_lens = 8, 16, 32, 64 |
+
+### Dataset summary
+
+| Run | Dataset | Description | Complexity | HuggingFace ID | Status |
+|-----|---------|-------------|-----------|----------------|--------|
+| EXP-002 | **TinyStories** | Children's short stories | Low | `roneneldan/TinyStories` | ✅ Done (phase change ~0.131B tokens) |
+| EXP-003a | **WikiText-103** | Wikipedia featured articles | Medium–High | `Salesforce/wikitext` (wikitext-103-raw-v1) | 🔲 Planned |
+| EXP-003b | **GitHub Code (Python)** | Python source code from GitHub | Structural / repetitive | `codeparrot/github-code` (Python subset) | 🔲 Planned |
+
+### Measurement
+
+For each run, record:
+- **Phase change token count**: first step where max induction score (seq_len=8) crosses 0.1 and stays above
+- **Plateau score**: mean induction score (seq_len=8) over steps 40,000–120,000
+- **Score at each seq_len** in final checkpoint (same as EXP-002 Cell 12)
+- **val_loss trajectory**
+
+### Expected outcome table (to be filled in)
+
+| Dataset | Phase change (tokens) | Plateau score (seq_len=8) | Score (seq_len=64) |
+|---------|----------------------|--------------------------|-------------------|
+| GitHub Code | ? | ? | ? |
+| TinyStories | **~0.131B** | **~0.30** | **0.039** |
+| WikiText-103 | ? | ? | ? |
+
+## Results
+
+(To be filled in after each run completes.)
+
+### EXP-003a: WikiText-103
+
+(Pending)
+
+### EXP-003b: GitHub Code (Python)
+
+(Pending)
+
+## Interpretation
+
+(To be filled in after all runs complete.)
